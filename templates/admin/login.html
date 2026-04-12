@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Вход в админ-панель | MedTech AI{% endblock %}
+{% block content %}
+  <main class="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-6 py-16">
+    <h1 class="text-center text-xl font-semibold text-slate-900">Админ-панель</h1>
+    <p class="mt-2 text-center text-sm text-slate-500">MedTech AI — заявки и диагностика потенциала</p>
+    <form method="post" class="mt-10 space-y-5 rounded-2xl border border-slate-100 bg-white p-8 shadow-sm" novalidate>
+      {{ form.hidden_tag() }}
+      <div>
+        {{ form.email.label(class_="block text-sm font-medium text-slate-700") }}
+        {{ form.email(class_="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-medteal focus:ring-2 focus:ring-medteal/20") }}
+        {% for e in form.email.errors %}<p class="mt-1 text-sm text-red-600">{{ e }}</p>{% endfor %}
+      </div>
+      <div>
+        {{ form.password.label(class_="block text-sm font-medium text-slate-700") }}
+        {{ form.password(class_="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-medteal focus:ring-2 focus:ring-medteal/20") }}
+        {% for e in form.password.errors %}<p class="mt-1 text-sm text-red-600">{{ e }}</p>{% endfor %}
+      </div>
+      <p class="text-center text-[11px] leading-relaxed text-slate-500">
+        Нажимая кнопку, вы соглашаетесь с
+        <a href="{{ url_for('privacy') }}" class="font-medium text-medteal underline decoration-medteal/30 underline-offset-2 hover:decoration-medteal">Политикой конфиденциальности</a>.
+      </p>
+      {{ form.submit(class_="w-full cursor-pointer rounded-xl bg-medteal py-3 text-sm font-semibold text-white hover:bg-medteal-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-medteal focus-visible:ring-offset-2") }}
+    </form>
+    <p class="mt-8 text-center text-sm">
+      <a href="{{ url_for('index') }}" class="text-medteal underline decoration-medteal/30 underline-offset-2 hover:decoration-medteal">На главную</a>
+    </p>
+  </main>
+{% endblock %}
