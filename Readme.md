@@ -1,56 +1,68 @@
-# Веб-сайт на Flask
+# 🌐 SynapCore: Site & AI Bot
 
-Полнофункциональный веб-сайт с формой обратной связи, кейсами, админ-панелью и интерактивными инструментами оценки эффективности внедрения ИИ-решений.
+Единая инфраструктура для автоматизации бизнеса, включающая экспертный веб-сайт и интеллектуального FAQ-ассистента.
 
 ## 🌟 Ключевые особенности
 
-- **AI ROI Calculator**: Интерактивный инструмент для оценки экономии человеко-часов при автоматизации типовых запросов.
+### 💻 Веб-платформа (Flask)
+- **AI ROI Calculator**: Интерактивный инструмент для оценки экономии человеко-часов при внедрении ИИ-агентов.
 - **Process Diagnostic Tool**: Система скоринга готовности бизнеса к внедрению ИИ с визуализацией потенциала через Chart.js.
 - **Clean Architecture**: Легкая и быстрая верстка на Tailwind CSS с серверной частью на Flask.
 
+### 🤖 AI-Ассистент (Bot)
+- **RAG & Knowledge Base**: Поиск по базе знаний через векторные хранилища (ChromaDB) для точных ответов.
+- **Semantic Search**: Бот понимает смысл вопроса, даже если клиент использует синонимы или делает опечатки.
 
 ## 🛠 Технологический стек
 
-- **Backend**: Python, Flask
+- **Core**: Python 3.12, [uv](https://github.com/astral-sh/uv) (Package Manager)
+- **Backend**: Flask, FastAPI
+- **AI/LLM**: LangChain, OpenAI API, RelevanceAI
+- **Database**: SQLAlchemy, ChromaDB
 - **Frontend**: Tailwind CSS, Jinja2, Chart.js
-- **Data Management**: Flask-SQLAlchemy, Flask-WTF
-- **Environment**: Dotenv (.env)
 
 ## 📂 Структура проекта
 
 ```text
-├── static/              # Ассеты: стили, скрипты, графика
+├── static/              # Ассеты: стили (Tailwind), скрипты, графика
 ├── templates/           # Шаблоны страниц на Jinja2
-├── app.py               # Точка входа и инициализация приложения
+├── ai_bot/              # Модули Telegram-бота и AI-логика
+├── app.py               # Точка входа для веб-сайта
+├── bot.py               # Точка входа для запуска бота
 ├── extensions.py        # Конфигурация расширений Flask
 ├── forms.py             # Валидация и структура форм
 ├── models.py            # Модели базы данных (SQLAlchemy)
-├── requirements.txt     # Зависимости проекта
+├── requirements.txt     # Зависимости проекта (оптимизированы через uv)
 └── .env.example         # Пример конфигурации окружения
+
 ```
 
-## 🚀 Установка
+## 🚀 Установка и запуск на сервере
 
 1. **Клонируйте репозиторий**:
    ```bash
-   git clone [https://github.com/zuzinamd-creator/medtech-ai-site.git](https://github.com/zuzinamd-creator/medtech-ai-site.git)
+   git clone [https://github.com/zuzinamd-creator/synapcore-full.git](https://github.com/zuzinamd-creator/synapcore-full.git)
+cd synapcore-full
 ```
 
-2. **Установите зависимости**:
-
-```bash
-pip install -r requirements.txt
-
+2. **Создайте окружение и установите зависимости**:
+Мы используем uv для максимально быстрой установки:
+   ```bash
+Bash
+uv venv
+source venv/bin/activate  # Для Linux/macOS
+uv pip install -r requirements.txt
 ```
 
 3. **Настройте переменные окружения**:
-Создайте файл `.env` на основе `.env.example` и укажите ваш `SECRET_KEY`.
+   Создайте файл `.env` на основе `.env.example` и укажите ваши ключи:
+   - `SECRET_KEY`
+   - `OPENAI_API_KEY`
+   - `TELEGRAM_BOT_TOKEN`
 
-4. **Запустите сервер**:
-
-```bash
-python app.py
-```
+4. **Запуск компонентов**:
+   - **Сайт**: `python app.py`
+   - **Бот**: `python bot.py`
 
 ## 👩‍💻 Автор
 
