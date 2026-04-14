@@ -255,7 +255,7 @@
   </div>
 
   <script>
-    const API_BASE = "http://localhost:8000";
+    const API_BASE = "";
 
     const launcher = document.getElementById("chat-launcher");
     const widget = document.getElementById("chat-widget");
@@ -301,7 +301,7 @@
       appendTyping();
 
       try {
-        const res = await fetch(API_BASE + "/chat", {
+        const res = await fetch("/predict", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: text, top_k: 3 })

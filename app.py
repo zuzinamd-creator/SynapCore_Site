@@ -7,7 +7,9 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 import requests
 from dotenv import load_dotenv
@@ -35,8 +37,45 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+UNKNOWN_ANSWER_PATTERNS = (
+    r"\bне\s+увер",
+    r"\bне\s+знаю",
+    r"\bнет\s+информац",
+    r"\bне\s+могу\s+ответ",
+    r"\bобратит(?:е|ь)сь\s+в\s+поддержк",
+)
+
 # Ссылка на контакт в Telegram (для текста уведомлений).
 TELEGRAM_CONTACT_URL = "https://t.me/Margo_AI_Engineer"
+
+
+def configure_file_logging() -> None:
+    """Настраивает запись логов в отдельный файл проекта."""
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    log_path = os.path.join(logs_dir, "app_errors.log")
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Не дублируем обработчик при повторном создании app (debug reload).
+    for handler in root_logger.handlers:
+        if isinstance(handler, RotatingFileHandler) and getattr(
+            handler, "baseFilename", ""
+        ) == log_path:
+            return
+
+    file_handler = RotatingFileHandler(
+        log_path, maxBytes=2_000_000, backupCount=5, encoding="utf-8"
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root_logger.addHandler(file_handler)
 
 
 def send_telegram_notification(text: str) -> None:
@@ -47,6 +86,9 @@ def send_telegram_notification(text: str) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     if not token or not chat_id:
+        logger.warning(
+            "Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing"
+        )
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
@@ -57,8 +99,29 @@ def send_telegram_notification(text: str) -> None:
         )
         if not r.ok:
             logger.warning("Telegram API: %s %s", r.status_code, r.text[:200])
+        else:
+            logger.info("Telegram notification sent successfully")
     except requests.RequestException as exc:
         logger.warning("Telegram send failed: %s", exc)
+
+
+def notify_error(context: str, details: str) -> None:
+    """Логирует ошибку и отправляет уведомление в тот же Telegram-чат."""
+    logger.error("%s | %s", context, details)
+    send_telegram_notification(
+        "🚨 Ошибка в веб-приложении\n\n"
+        f"Контекст: {context}\n"
+        f"Детали: {details}\n"
+        f"Контакт: {TELEGRAM_CONTACT_URL}"
+    )
+
+
+def is_unknown_answer(answer: str) -> bool:
+    """Определяет, что ассистент не уверен в ответе и нужен оператор."""
+    text = (answer or "").strip().lower()
+    if not text:
+        return True
+    return any(re.search(pattern, text) for pattern in UNKNOWN_ANSWER_PATTERNS)
 
 
 def ensure_admin_user() -> None:
@@ -89,6 +152,7 @@ def compute_automation_score(q1: int, q2: int, q3: int) -> int:
 
 def create_app() -> Flask:
     """Фабрика приложения: конфигурация, расширения, маршруты."""
+    configure_file_logging()
     app = Flask(__name__, instance_relative_config=True)
     os.makedirs(app.instance_path, exist_ok=True)
 
@@ -129,25 +193,38 @@ def create_app() -> Flask:
         """Приём формы обратной связи с CSRF и валидацией WTForms."""
         form = ContactForm()
         if form.validate_on_submit():
-            entry = Feedback(
-                name=form.name.data.strip(),
-                email=form.email.data.strip().lower(),
-                company=form.company.data.strip(),
-                message=form.message.data.strip(),
-                ip_address=request.remote_addr,
-            )
-            db.session.add(entry)
-            db.session.commit()
-            send_telegram_notification(
-                "📝 Новая заявка с сайта\n\n"
-                f"Имя: {entry.name}\n"
-                f"Email: {entry.email}\n"
-                f"Компания: {entry.company}\n"
-                f"Сообщение:\n{entry.message}\n\n"
-                f"IP: {entry.ip_address or '—'}\n"
-                f"Контакт: {TELEGRAM_CONTACT_URL}"
-            )
-            flash("Спасибо! Мы свяжемся с вами в ближайшее время.", "success")
+            try:
+                entry = Feedback(
+                    name=form.name.data.strip(),
+                    email=form.email.data.strip().lower(),
+                    company=form.company.data.strip(),
+                    message=form.message.data.strip(),
+                    ip_address=request.remote_addr,
+                )
+                db.session.add(entry)
+                db.session.commit()
+                send_telegram_notification(
+                    "📝 Новая заявка с сайта\n\n"
+                    f"Имя: {entry.name}\n"
+                    f"Email: {entry.email}\n"
+                    f"Компания: {entry.company}\n"
+                    f"Сообщение:\n{entry.message}\n\n"
+                    f"IP: {entry.ip_address or '—'}\n"
+                    f"Контакт: {TELEGRAM_CONTACT_URL}"
+                )
+                flash("Спасибо! Мы свяжемся с вами в ближайшее время.", "success")
+            except Exception as exc:
+                db.session.rollback()
+                logger.exception("Contact form processing failed: %s", exc)
+                notify_error(
+                    "Форма обратной связи",
+                    (
+                        f"{type(exc).__name__}: {exc}; "
+                        f"ip={request.remote_addr or '—'}; "
+                        f"email={form.email.data or '—'}"
+                    ),
+                )
+                flash("Произошла ошибка при отправке формы. Попробуйте позже.", "danger")
         else:
             for errors in form.errors.values():
                 for err in errors:
@@ -205,8 +282,18 @@ def create_app() -> Flask:
 
     @app.route("/privacy")
     def privacy():
-        """Открывает PDF-файл политики конфиденциальности из папки static."""
-        return send_from_directory('static', 'privacy-policy.pdf')
+        """Открывает HTML-страницу с текстом из privacy-policy.md."""
+        policy_path = os.path.join(app.root_path, "privacy-policy.md")
+        try:
+            with open(policy_path, "r", encoding="utf-8") as f:
+                policy_markdown = f.read()
+        except OSError as exc:
+            logger.exception("Failed to read privacy policy file: %s", exc)
+            policy_markdown = (
+                "Не удалось загрузить текст политики конфиденциальности. "
+                "Попробуйте обновить страницу позже."
+            )
+        return render_template("privacy.html", policy_markdown=policy_markdown)
 
     @app.route("/admin/login", methods=["GET", "POST"])
     def admin_login():
@@ -267,6 +354,62 @@ def create_app() -> Flask:
         db.session.commit()
         flash("Запись аудита удалена.", "info")
         return redirect(url_for("admin_dashboard"))
+
+    @app.post("/predict")
+    def predict():
+        data = request.get_json(silent=True) or {}
+        user_message = (data.get("message") or "").strip()
+        logger.info(
+            "POST /predict: ip=%s ua=%s message_len=%s",
+            request.remote_addr,
+            (request.headers.get("User-Agent") or "")[:160],
+            len(user_message),
+        )
+        if not user_message:
+            logger.warning("POST /predict rejected: empty message")
+            return jsonify({"answer": "Сообщение не получено"}), 400
+        try:
+            # Проксируем сообщение к FastAPI-боту на локальном порту 8000.
+            response = requests.post(
+                "http://127.0.0.1:8000/chat",
+                json={"message": user_message},
+                timeout=15
+            )
+            logger.info("FastAPI /chat response status=%s", response.status_code)
+            response.raise_for_status()
+            bot_data = response.json()
+            bot_answer = (bot_data.get("answer") or "").strip()
+
+            if is_unknown_answer(bot_answer):
+                logger.info("Assistant fallback triggered for message: %s", user_message[:240])
+                send_telegram_notification(
+                    "🤖 Ассистент не уверен в ответе, нужен оператор\n\n"
+                    f"Вопрос пользователя:\n{user_message}\n\n"
+                    f"IP: {request.remote_addr or '—'}\n"
+                    f"Контакт: {TELEGRAM_CONTACT_URL}"
+                )
+                return jsonify(
+                    {
+                        "answer": (
+                            "Я не уверен в точном ответе. Передал ваш вопрос в поддержку, "
+                            "мы свяжемся с вами в ближайшее время."
+                        )
+                    }
+                )
+
+            logger.info("POST /predict completed successfully")
+            return jsonify({"answer": bot_answer or "Не удалось сформировать ответ"})
+        except Exception as e:
+            logger.exception("POST /predict failed: %s", e)
+            notify_error(
+                "Чат поддержки /predict",
+                (
+                    f"{type(e).__name__}: {e}; "
+                    f"ip={request.remote_addr or '—'}; "
+                    f"message={user_message[:240]}"
+                ),
+            )
+            return jsonify({"answer": "Ошибка связи с ассистентом"}), 500    
 
     return app
 

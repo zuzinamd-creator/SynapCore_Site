@@ -1,69 +1,89 @@
-# 🌐 SynapCore: Site & AI Bot
+# SynapCore: Site + Support Bot
 
-Единая инфраструктура для автоматизации бизнеса, включающая экспертный веб-сайт и интеллектуального FAQ-ассистента.
+Проект состоит из двух сервисов:
+- сайт на Flask (`:5000`);
+- FAQ/RAG-бот на FastAPI (`:8000`).
 
-## 🌟 Ключевые особенности
+Фронтенд сайта отправляет сообщения в `POST /predict` на Flask, а Flask проксирует запрос к FastAPI (`/chat`).
 
-### 💻 Веб-платформа (Flask)
-- **AI ROI Calculator**: Интерактивный инструмент для оценки экономии человеко-часов при внедрении ИИ-агентов.
-- **Process Diagnostic Tool**: Система скоринга готовности бизнеса к внедрению ИИ с визуализацией потенциала через Chart.js.
-- **Clean Architecture**: Легкая и быстрая верстка на Tailwind CSS с серверной частью на Flask.
+## Возможности
 
-### 🤖 AI-Ассистент (Bot)
-- **RAG & Knowledge Base**: Поиск по базе знаний через векторные хранилища (ChromaDB) для точных ответов.
-- **Semantic Search**: Бот понимает смысл вопроса, даже если клиент использует синонимы или делает опечатки.
+### Сайт (Flask)
+- лендинг с формой обратной связи;
+- калькулятор ROI и диагностический квиз;
+- админ-раздел для заявок и результатов диагностики;
+- страница политики конфиденциальности по адресу `/privacy` (HTML-страница с текстом из `privacy-policy.md`).
 
-## 🛠 Технологический стек
+### Бот поддержки (FastAPI)
+- RAG-поиск по базе знаний;
+- генерация ответа через OpenAI;
+- fallback-сценарий: если бот не уверен в ответе, запрос эскалируется в Telegram.
 
-- **Core**: Python 3.12, [uv](https://github.com/astral-sh/uv) (Package Manager)
-- **Backend**: Flask, FastAPI
-- **AI/LLM**: LangChain, OpenAI API, RelevanceAI
-- **Database**: SQLAlchemy, ChromaDB
-- **Frontend**: Tailwind CSS, Jinja2, Chart.js
+### Логирование и уведомления
+- ошибки пишутся в `logs/app_errors.log` (с ротацией файлов);
+- ошибки формы обратной связи и чата поддержки отправляются в тот же Telegram-чат, что и обычные заявки.
 
-## 📂 Структура проекта
+## Технологии
+
+- Python, Flask, FastAPI
+- SQLAlchemy, Flask-WTF
+- OpenAI API, FAISS, NumPy
+- Tailwind CSS, Jinja2, Chart.js
+
+## Структура проекта
 
 ```text
-├── static/              # Ассеты: стили (Tailwind), скрипты, графика
-├── templates/           # Шаблоны страниц на Jinja2
-├── ai_bot/              # Модули Telegram-бота и AI-логика
-├── app.py               # Точка входа для веб-сайта
-├── bot.py               # Точка входа для запуска бота
-├── extensions.py        # Конфигурация расширений Flask
-├── forms.py             # Валидация и структура форм
-├── models.py            # Модели базы данных (SQLAlchemy)
-├── requirements.txt     # Зависимости проекта (оптимизированы через uv)
-└── .env.example         # Пример конфигурации окружения
-
+├── app.py                      # Flask-приложение (сайт + прокси /predict)
+├── backend_bot/
+│   ├── backend/app.py          # FastAPI-приложение бота
+│   └── data/                   # База знаний и индексы
+├── templates/                  # HTML-шаблоны Jinja2
+├── static/                     # JS/CSS/медиа
+├── logs/app_errors.log         # Файл логов ошибок (создается приложением)
+├── privacy-policy.md           # Исходный текст политики конфиденциальности
+├── requirements.txt
+└── .env.example
 ```
 
-## 🚀 Установка и запуск на сервере
+## Переменные окружения
 
-1. **Клонируйте репозиторий**:
-   ```bash
-   git clone [https://github.com/zuzinamd-creator/synapcore-full.git](https://github.com/zuzinamd-creator/synapcore-full.git)
-cd synapcore-full
+Создайте `.env` в корне проекта и укажите минимум:
+- `SECRET_KEY`
+- `OPENAI_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+## Локальный запуск
+
+1. Создайте и активируйте виртуальное окружение.
+2. Установите зависимости:
+
+```bash
+pip install -r requirements.txt
 ```
 
-2. **Создайте окружение и установите зависимости**:
-Мы используем uv для максимально быстрой установки:
-   ```bash
-Bash
-uv venv
-source venv/bin/activate  # Для Linux/macOS
-uv pip install -r requirements.txt
+3. Запустите FastAPI-бота:
+
+```bash
+python -m uvicorn backend_bot.backend.app:app --host 127.0.0.1 --port 8000
 ```
 
-3. **Настройте переменные окружения**:
-   Создайте файл `.env` на основе `.env.example` и укажите ваши ключи:
-   - `SECRET_KEY`
-   - `OPENAI_API_KEY`
-   - `TELEGRAM_BOT_TOKEN`
+4. В другом терминале запустите Flask-сайт:
 
-4. **Запуск компонентов**:
-   - **Сайт**: `python app.py`
-   - **Бот**: `python bot.py`
+```bash
+python app.py
+```
 
-## 👩‍💻 Автор
+5. Откройте:
+- сайт: `http://127.0.0.1:5000`
+- health бота: `http://127.0.0.1:8000/health`
+- docs бота: `http://127.0.0.1:8000/docs`
 
-**Telegram:** [@Margo_AI_Engineer](https://t.me/Margo_AI_Engineer)
+## Примечания
+
+- Для валидации email используется пакет `email-validator`.
+- Чат на сайте использует CSRF-токен (`X-CSRFToken`) для запроса в `POST /predict`.
+
+## Автор
+
+Telegram: [@Margo_AI_Engineer](https://t.me/Margo_AI_Engineer)

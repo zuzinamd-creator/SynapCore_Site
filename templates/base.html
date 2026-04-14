@@ -91,7 +91,8 @@
   <script>
     window.APP_URLS = {
       cookieConsent: "{{ url_for('api_cookie_consent') }}",
-      audit: "{{ url_for('api_audit') }}"
+      audit: "{{ url_for('api_audit') }}",
+      predict: "{{ url_for('predict') }}"
     };
   </script>
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -140,6 +141,11 @@
   </div>
 
   <script>
+    function getCsrfToken() {
+      const el = document.querySelector('meta[name="csrf-token"]');
+      return el ? (el.getAttribute('content') || '') : '';
+    }
+
     function toggleChat() {
       const win = document.getElementById('chat-window');
       win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
@@ -162,9 +168,12 @@
       container.innerHTML += `<div id="${loadingId}" class="message bot-message italic">Печатает...</div>`;
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/chat', {
+        const response = await fetch(window.APP_URLS.predict, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
           body: JSON.stringify({ message: text })
         });
         const data = await response.json();
